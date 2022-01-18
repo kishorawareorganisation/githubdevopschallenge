@@ -32,7 +32,7 @@ resource webApp 'Microsoft.Web/sites@2021-02-01' = {
   }
 }
 
-var yourAadUserObjectId= '<your-aad-user-object-id-here>'
+var yourAadUserObjectId= '0841e72b-2b87-4b55-af46-92416ae53d0e'
 
 var userObjectIdsToGrantAccessPoliciesThatAllowFullControlForAllEntitiesInKeyVault = [
   yourAadUserObjectId
