@@ -55,7 +55,7 @@ jobs:
       uses: actions/upload-artifact@v2.1.3
       with:
         name: bicep-template
-        path: deploy.bicep
+        path: ./bicep-template/
         if-no-files-found: error
         
   release-to-dev-env:
