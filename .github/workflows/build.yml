@@ -4,6 +4,13 @@ on:
     branches: [ master ]
   pull_request:
     branches: [ master ]
+    
+env:
+  DEPLOY_LOCATION: australiaeast
+  TEST_RESOURCE_GROUP_NAME: testforeverything
+  TEST_APP_SERVICE_PLAN_NAME: plan-test-aueast-azsprintseries
+  PROD_APP_SERVICE_PLAN_NAME: plan-prod-aueast-azsprintseries
+  
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -33,7 +40,10 @@ jobs:
       shell: bash
       env:
         PKG_VERSION: 1.0.3 
-    
+        
+    - name: Push the CommonLogic NuGet package
+      run: dotnet nuget push *.nupkg --skip-duplicate
+      
     - name: Publish portal project in Release mode
       run: dotnet publish  ${{ github.workspace }}/AnimalAdoption.Web.Portal/AnimalAdoption.Web.Portal.csproj --configuration Release --no-build --output ./taa-portal/
    
@@ -51,36 +61,54 @@ jobs:
     
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     
-    steps:      
-    - name: Download a Build Artifact
+    env:
+      TEST_WEB_APP_NAME: wa-test-aueast-azsprintseries
+      TEST_KEY_VAULT_NAME: kv-test-aueast-azsprints
+    
+    steps:  
+    
+    - name: Download the bicep-template artifact
       uses: actions/download-artifact@v2.0.5
       with:
-        name: drop
-        path: ./taa-portal/
-        
-    - name: Azure WebApp
-      uses: Azure/webapps-deploy@v2
-      with:
-        app-name: testwebappforsprint
-        publish-profile: ${{ secrets.WEBAPP_SECRET }}
-        package: ./taa-portal/
+          name: bicep-template
+          path: ./bicep-template/
+          
 
     - name: Azure Login
       uses: Azure/login@v1.1
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS}}
         
+    - name: Deploy resources to the Test Resource Group using an Bicep template
+      uses: azure/arm-deploy@v1
+      with:
+          subscriptionId: 91207f96-020f-420e-a941-93a4f37ec54f
+          resourceGroupName: ${{ env.TEST_RESOURCE_GROUP_NAME }}
+          template: ./bicep-template/deploy.bicep.txt
+          parameters: tenantGuid=dab167d2-fdab-4ab5-a387-22f955436d0a appServicePlanName=${{ env.TEST_APP_SERVICE_PLAN_NAME }} keyVaultName=${{ env.TEST_KEY_VAULT_NAME }} webAppName=${{ env.TEST_WEB_APP_NAME }} resourceGroupServicePrincipalManagedApplicationObjectId=ca8d7d21-57e4-4962-bd37-2dc48754a9a5
+          failOnStdErr: false
+          
+    - name: Download the TAA web portal artifact
+      uses: actions/download-artifact@v2.0.5
+      with:
+          name: taa-portal
+          path: ./taa-portal/
+          
+    - name: Deploy the TAA portal to the Test Web App
+      uses: Azure/webapps-deploy@v2
+      with:
+          app-name: ${{ env.TEST_WEB_APP_NAME }}
+          package: ./taa-portal/          
+        
     - name: Get Secrets from Test Key Vault
       id: getSecretsFromTestKeyVault
       uses: Azure/get-keyvault-secrets@v1
       with:
-        keyvault: testtodeleteforwebapp
+        keyvault: ${{ env.TEST_KEY_VAULT_NAME }}
         secrets: 'GlobalPassword, SimulatedFailureChance'
         
-    - name: Azure App Service Settings
+    - name: Update the App Settings for the Test Web App
       uses: Azure/appservice-settings@v1
-      env:
-        SIMULATED_FAILURE_CHANCE: 0
       with:
-        app-name: testwebappforsprint
-        app-settings-json: '[{"name": "GlobalPassword","value": "${{ steps.getSecretsFromTestKeyVault.outputs.GlobalPassword }}","slotSetting": false},{"name": "SimulatedFailureChance","value": "${{ steps.getSecretsFromTestKeyVault.outputs.SimulatedFailureChance }}","slotSetting": false}]'
+          app-name: ${{ env.TEST_WEB_APP_NAME }}
+          app-settings-json: '[{"name": "GlobalPassword","value": "${{ steps.getSecretsFromTestKeyVault.outputs.GlobalPassword }}","slotSetting": false},{"name": "SimulatedFailureChance","value": "${{ steps.getSecretsFromTestKeyVault.outputs.SimulatedFailureChance }}","slotSetting": false}]'
