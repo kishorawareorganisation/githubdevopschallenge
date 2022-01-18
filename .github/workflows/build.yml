@@ -69,6 +69,7 @@ jobs:
       uses: Azure/login@v1.1
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS}}
+        enable-AzPSSession: true
         
     - name: Azure App Service Settings
       uses: Azure/appservice-settings@v1
