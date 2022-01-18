@@ -65,3 +65,15 @@ jobs:
         publish-profile: ${{ secrets.WEBAPP_SECRET }}
         package: ./taa-portal/
 
+    - name: Azure Login
+      uses: Azure/login@v1.1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS}}
+        
+    - name: Azure App Service Settings
+      uses: Azure/appservice-settings@v1
+      env:
+        SIMULATED_FAILURE_CHANCE: 0
+      with:
+        app-name: ${{ env.TEST_WEB_APP_NAME }}
+        app-settings-json: '[{"name": "GlobalPassword","value": "${{ secrets.WA_TEST_AUEAST_AZSPRINTSERIES_GLOBAL_PASSWORD }}","slotSetting": false},{"name": "SimulatedFailureChance","value": "${{ env.SIMULATED_FAILURE_CHANCE }}","slotSetting": false}]'
