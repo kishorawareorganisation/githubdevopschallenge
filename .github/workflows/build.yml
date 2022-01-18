@@ -70,10 +70,17 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS}}
         
+    - name: Get Secrets from Test Key Vault
+      id: getSecretsFromTestKeyVault
+      uses: Azure/get-keyvault-secrets@v1
+      with:
+        keyvault: testtodeleteforwebapp
+        secrets: 'GlobalPassword, SimulatedFailureChance'
+        
     - name: Azure App Service Settings
       uses: Azure/appservice-settings@v1
       env:
         SIMULATED_FAILURE_CHANCE: 0
       with:
         app-name: testwebappforsprint
-        app-settings-json: '[{"name": "GlobalPassword","value": "${{ secrets.GLOBALPASSWORD }}","slotSetting": false},{"name": "SimulatedFailureChance","value": "${{ env.SIMULATED_FAILURE_CHANCE }}","slotSetting": false}]'
+        app-settings-json: '[{"name": "GlobalPassword","value": "${{ steps.getSecretsFromTestKeyVault.outputs.GlobalPassword }}","slotSetting": false},{"name": "SimulatedFailureChance","value": "${{ steps.getSecretsFromTestKeyVault.outputs.SimulatedFailureChance }}","slotSetting": false}]'
