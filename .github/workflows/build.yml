@@ -44,7 +44,7 @@ jobs:
         path:  ${{ github.workspace }}/taa-portal/
         if-no-files-found: error
         
-  release-to-test-env:
+  release-to-dev-env:
     runs-on: ubuntu-latest
     
     needs: [ build ]
