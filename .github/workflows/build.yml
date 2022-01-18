@@ -6,7 +6,7 @@ on:
     branches: [ master ]
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
     - uses: actions/checkout@v2
       
@@ -69,12 +69,11 @@ jobs:
       uses: Azure/login@v1.1
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS}}
-        enable-AzPSSession: true
         
     - name: Azure App Service Settings
       uses: Azure/appservice-settings@v1
       env:
         SIMULATED_FAILURE_CHANCE: 0
       with:
-        app-name: ${{ env.TEST_WEB_APP_NAME }}
-        app-settings-json: '[{"name": "GlobalPassword","value": "${{ secrets.WA_TEST_AUEAST_AZSPRINTSERIES_GLOBAL_PASSWORD }}","slotSetting": false},{"name": "SimulatedFailureChance","value": "${{ env.SIMULATED_FAILURE_CHANCE }}","slotSetting": false}]'
+        app-name: testwebappforsprint
+        app-settings-json: '[{"name": "GlobalPassword","value": "${{ secrets.GLOBALPASSWORD }}","slotSetting": false},{"name": "SimulatedFailureChance","value": "${{ env.SIMULATED_FAILURE_CHANCE }}","slotSetting": false}]'
