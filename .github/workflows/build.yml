@@ -116,3 +116,62 @@ jobs:
       with:
           app-name: ${{ env.TEST_WEB_APP_NAME }}
           app-settings-json: '[{"name": "GlobalPassword","value": "${{ steps.getSecretsFromTestKeyVault.outputs.GlobalPassword }}","slotSetting": false},{"name": "SimulatedFailureChance","value": "${{ steps.getSecretsFromTestKeyVault.outputs.SimulatedFailureChance }}","slotSetting": false}]'
+          
+  release-to-prod-env:
+   runs-on: ubuntu-latest
+
+   needs: [ release-to-dev-env ]
+
+   if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+
+   env:
+      PROD_RESOURCE_GROUP_NAME: rg-prod-aueast-azsprintseries
+      PROD_KEY_VAULT_NAME: kv-prod-aueast-azsprints
+      PROD_WEB_APP_NAME: wa-prod-aueast-azsprintseries
+
+   steps:
+      - name: Download the bicep-template artifact
+        uses: actions/download-artifact@v2.0.5
+        with:
+          name: bicep-template
+          path: ./bicep-template/
+
+      - name: Login to Azure using the Production SP credentials
+        uses: Azure/login@v1.1
+        with:
+          creds: ${{ secrets.azure_prod_credential }}
+
+      - name: Deploy resources to the Test Resource Group using an Bicep template
+        uses: azure/arm-deploy@v1
+        with:
+          subscriptionId: 91207f96-020f-420e-a941-93a4f37ec54f
+          resourceGroupName: prodforwebapp
+          template: ./bicep-template/deploy.bicep
+          parameters: tenantGuid=dab167d2-fdab-4ab5-a387-22f955436d0a appServicePlanName=${{ env.PROD_APP_SERVICE_PLAN_NAME }} keyVaultName=${{ env.PROD_KEY_VAULT_NAME }} webAppName=${{ env.PROD_WEB_APP_NAME }} resourceGroupServicePrincipalManagedApplicationObjectId=055147cf-3b58-4d5d-98f0-b3ddcb9b16ea
+          failOnStdErr: false
+
+      - name: Download the TAA web portal artifact
+        uses: actions/download-artifact@v2.0.5
+        with:
+          name: taa-portal
+          path: ./taa-portal/
+
+      - name: Deploy the TAA portal to the Production Web App
+        uses: Azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.PROD_WEB_APP_NAME }}
+          package: ./taa-portal/
+
+      - name: Get Secrets from the Production Key Vault
+        id: getSecretsFromProductionKeyVault
+        uses: Azure/get-keyvault-secrets@v1
+        with:
+          keyvault: ${{ env.PROD_KEY_VAULT_NAME }}
+          secrets: 'GlobalPassword, SimulatedFailureChance'
+
+      - name: Update the App Settings for the Production Web App
+        uses: Azure/appservice-settings@v1
+        with:
+          app-name: ${{ env.PROD_WEB_APP_NAME }}
+          app-settings-json: '[{"name": "GlobalPassword","value": "${{ steps.getSecretsFromProductionKeyVault.outputs.GlobalPassword }}","slotSetting": false},{"name": "SimulatedFailureChance","value": "${{ steps.getSecretsFromProductionKeyVault.outputs.SimulatedFailureChance }}","slotSetting": false}]'
+
