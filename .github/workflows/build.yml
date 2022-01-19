@@ -42,7 +42,14 @@ jobs:
         PKG_VERSION: 1.0.3 
       
     - name: Publish portal project in Release mode
-      run: dotnet publish  ./AnimalAdoption.Web.Portal/AnimalAdoption.Web.Portal.csproj --configuration Release --no-build --output ./bicep-template/
+      run: dotnet publish  ./AnimalAdoption.Web.Portal/AnimalAdoption.Web.Portal.csproj --configuration Release --no-build --output ./taa-portal/
+      
+    - name: Upload a build artifact for the TAA web portal
+      uses: actions/upload-artifact@v2.1.3
+      with:
+        name: taa-portal
+        path:  ${{ github.workspace }}/taa-portal/
+        if-no-files-found: error   
         
     - name: Upload a build artifact for the Bicep template
       uses: actions/upload-artifact@v2.1.3
