@@ -130,3 +130,14 @@ resource keyVault 'Microsoft.KeyVault/vaults@2021-06-01-preview' = {
     accessPolicies: keyVaultAccessPolicies
   }
 }
+
+resource webAppSlot 'Microsoft.Web/sites/slots@2021-02-01' = {
+        name: 'staging'
+        parent: webApp
+        location: location
+        properties: {
+        }
+        dependsOn: [
+            webApp
+        ]
+    }
