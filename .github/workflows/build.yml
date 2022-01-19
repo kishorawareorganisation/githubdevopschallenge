@@ -58,6 +58,13 @@ jobs:
         path: deploy.bicep
         if-no-files-found: error
         
+    - name: Upload a build artifact for the functional tests
+      uses: actions/upload-artifact@v2.1.3
+      with:
+        name: functional-tests
+        path: ${{ github.workspace }}/AnimalAdoption.Web.Portal.FunctionalTests/bin/Release/netcoreapp3.1/*
+        if-no-files-found: error
+        
   release-to-dev-env:
     runs-on: ubuntu-latest
     
@@ -116,11 +123,34 @@ jobs:
       with:
           app-name: ${{ env.TEST_WEB_APP_NAME }}
           app-settings-json: '[{"name": "GlobalPassword","value": "${{ steps.getSecretsFromTestKeyVault.outputs.GlobalPassword }}","slotSetting": false},{"name": "SimulatedFailureChance","value": "${{ steps.getSecretsFromTestKeyVault.outputs.SimulatedFailureChance }}","slotSetting": false}]'
-          
+  
+  run-functional-tests:
+    runs-on: windows-latest
+
+    needs: [ release-to-dev-env ]
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+
+    env:
+      ANIMAL_ADOPTION_FUNCTIONAL_TEST_PATH: http://wa-test-aueast-azsprintseries.azurewebsites.net/
+
+    steps:
+      - name: Download the function-tests build artifact
+        uses: actions/download-artifact@v2.0.5
+        with:
+          name: functional-tests
+          path: ./functional-tests/
+
+      - name: Add VSTest.console.exe to the PATH
+        uses: darenm/Setup-VSTest@v1
+
+      - name: Run functional tests against the test instance of the TAA web portal
+        run: vstest.console.exe "functional-tests/AnimalAdoption.Web.Portal.FunctionalTests.dll"        
+                 
   release-to-prod-env:
    runs-on: ubuntu-latest
 
-   needs: [ release-to-dev-env ]
+   needs: [ run-functional-tests ]
 
    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
 
