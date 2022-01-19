@@ -158,7 +158,7 @@ jobs:
       PROD_RESOURCE_GROUP_NAME: rg-prod-aueast-azsprintseries
       PROD_KEY_VAULT_NAME: kv-prod-aueast-azsprints
       PROD_WEB_APP_NAME: wa-prod-aueast-azsprintseries
-      PROD_WEB_APP_SLOT_TO_DEPLOY_TO: production
+      PROD_WEB_APP_SLOT_TO_DEPLOY_TO: staging
    steps:
       - name: Download the bicep-template artifact
         uses: actions/download-artifact@v2.0.5
