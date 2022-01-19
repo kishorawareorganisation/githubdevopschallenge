@@ -158,7 +158,7 @@ jobs:
       PROD_RESOURCE_GROUP_NAME: rg-prod-aueast-azsprintseries
       PROD_KEY_VAULT_NAME: kv-prod-aueast-azsprints
       PROD_WEB_APP_NAME: wa-prod-aueast-azsprintseries
-
+      PROD_WEB_APP_SLOT_TO_DEPLOY_TO: production
    steps:
       - name: Download the bicep-template artifact
         uses: actions/download-artifact@v2.0.5
@@ -186,11 +186,12 @@ jobs:
           name: taa-portal
           path: ./taa-portal/
 
-      - name: Deploy the TAA portal to the Production Web App
+      - name: Deploy the TAA portal to the ${{ env.PROD_WEB_APP_SLOT_TO_DEPLOY_TO }} slot of the Production Web App
         uses: Azure/webapps-deploy@v2
         with:
           app-name: ${{ env.PROD_WEB_APP_NAME }}
           package: ./taa-portal/
+          slot-name: ${{ env.PROD_WEB_APP_SLOT_TO_DEPLOY_TO }}
 
       - name: Get Secrets from the Production Key Vault
         id: getSecretsFromProductionKeyVault
