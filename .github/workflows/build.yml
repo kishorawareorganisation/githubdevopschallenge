@@ -7,9 +7,17 @@ on:
     
 env:
   DEPLOY_LOCATION: australiaeast
+  STAGING_SLOT_NAME: staging
+  PRODUCTION_SLOT_NAME: production
+  DEPLOYMENT_SLOT_TO_USE: production
   TEST_RESOURCE_GROUP_NAME: testforeverything
   TEST_APP_SERVICE_PLAN_NAME: plan-test-aueast-azsprintseries
+  TEST_WEB_APP_NAME: wa-test-aueast-azsprintseries
+  TEST_KEY_VAULT_NAME: kv-test-aueast-azsprints
+  PROD_RESOURCE_GROUP_NAME: rg-prod-aueast-azsprintseries
   PROD_APP_SERVICE_PLAN_NAME: plan-prod-aueast-azsprintseries
+  PROD_WEB_APP_NAME: wa-prod-aueast-azsprintseries
+  PROD_KEY_VAULT_NAME: kv-prod-aueast-azsprints
   
 jobs:
   build:
@@ -185,6 +193,20 @@ jobs:
         with:
           name: taa-portal
           path: ./taa-portal/
+          
+      - name: Set environment variable for PROD_WEB_APP_SLOT_TO_DEPLOY_TO
+        shell: pwsh
+        run: |
+          if ("${{ env.DEPLOYMENT_SLOT_TO_USE }}" -eq "${{ env.PRODUCTION_SLOT_NAME }}") {
+            echo "::set-env name=PROD_WEB_APP_SLOT_TO_DEPLOY_TO::${{ env.PRODUCTION_SLOT_NAME }}"
+          } else {
+            echo "::set-env name=PROD_WEB_APP_SLOT_TO_DEPLOY_TO::${{ env.STAGING_SLOT_NAME }}"
+          }
+          
+      - name: Output value of PROD_WEB_APP_SLOT_TO_DEPLOY_TO
+        run: |
+          echo "Will deploy to ${{ env.PROD_WEB_APP_SLOT_TO_DEPLOY_TO }} slot"  
+          
 
       - name: Deploy the TAA portal to the ${{ env.PROD_WEB_APP_SLOT_TO_DEPLOY_TO }} slot of the Production Web App
         uses: Azure/webapps-deploy@v2
@@ -205,4 +227,82 @@ jobs:
         with:
           app-name: ${{ env.PROD_WEB_APP_NAME }}
           app-settings-json: '[{"name": "GlobalPassword","value": "${{ steps.getSecretsFromProductionKeyVault.outputs.GlobalPassword }}","slotSetting": false},{"name": "SimulatedFailureChance","value": "${{ steps.getSecretsFromProductionKeyVault.outputs.SimulatedFailureChance }}","slotSetting": false}]'
+          
+  check-for-azure-monitor-errors:
+    runs-on: ubuntu-latest
+
+    needs: [ release-to-prod-env ]
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+
+    outputs:
+      productionSlotHasActiveAlerts: ${{ steps.powershell-get-az-monitor-status.outputs.production_slot_has_active_alerts }}
+
+    steps:
+      - name: Login to Azure using the Production SP credentials
+        uses: Azure/login@v1.1
+        with:
+          creds: ${{ secrets.AZURE_PROD_CREDENTIAL }}
+          enable-AzPSSession: true
+
+      - name: Get the unresolved Azure Monitor Alerts that have fired in the last hour for the production slot
+        id: powershell-get-az-monitor-status
+        uses: Azure/powershell@v1
+        with:
+          inlineScript: |
+            Install-Module -Name Az.AlertsManagement -Scope CurrentUser -Force
+            $outcome_obj = (Get-AzAlert -TargetResourceGroup rg-prod-aueast-azsprintseries -MonitorCondition Fired -TimeRange 1h -State New -Severity Sev0 -AlertRuleId "/subscriptions/91207f96-020f-420e-a941-93a4f37ec54f/resourceGroups/${{ env.PROD_RESOURCE_GROUP_NAME }}/providers/microsoft.insights/metricAlerts/taa-prod-web-app-availability-alert")
+            $outcome_json = $outcome_obj | ConvertTo-JSON
+            Write-Host "outcome_obj is: $outcome_obj"
+            Write-Host "outcome_json is: $outcome_json"
+            if ($outcome_obj -eq $null) {
+              echo "::set-output name=production_slot_has_active_alerts::${{ false }}"
+              Write-Host "Set production_slot_has_active_alerts output var to false"
+            } else {
+              echo "::set-output name=production_slot_has_active_alerts::${{ true }}"
+              Write-Host "Set production_slot_has_active_alerts output var to true"
+            }
+          azPSVersion: latest
+          errorActionPreference: stop
+          failOnStandardError: true
+  
+  swap-slots-due-to-monitor-errors:
+      runs-on: ubuntu-latest
+
+      needs: [ check-for-azure-monitor-errors ]
+
+      if: github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.check-for-azure-monitor-errors.outputs.productionSlotHasActiveAlerts == 'true'
+
+      steps:
+      - name: Output value for needs.check-for-azure-monitor-errors.outputs.productionSlotHasActiveAlerts
+        run: |
+          echo "Incoming value is ${{ needs.check-for-azure-monitor-errors.outputs.productionSlotHasActiveAlerts }}"
+          echo "Should roll back slots"
+
+      - name: Login to Azure using the Production SP credentials
+        uses: Azure/login@v1.1
+        with:
+          creds: ${{ secrets.AZURE_PROD_CREDENTIAL }}
+
+      - name: Swap the staging app to the production slot
+        uses: Azure/cli@v1.0.0
+        with:
+          inlineScript: |
+            az webapp deployment slot swap --name "${{ env.PROD_WEB_APP_NAME }}" --resource-group "${{ env. PROD_RESOURCE_GROUP_NAME }}" --slot "${{ env.STAGING_SLOT_NAME }}" --target-slot "${{ env.PRODUCTION_SLOT_NAME }}"
+          azcliversion: latest
+
+      - name: Get Secrets from the Production Key Vault
+        id: getSecretsFromProductionKeyVault
+        uses: Azure/get-keyvault-secrets@v1
+        with:
+          keyvault: ${{ env.PROD_KEY_VAULT_NAME }}
+          secrets: 'GlobalPassword, SimulatedFailureChance'
+
+      - name: Update the App Settings for the Production Web App
+        uses: Azure/appservice-settings@v1
+        with:
+          app-name: ${{ env.PROD_WEB_APP_NAME }}
+          slot-name: ${{ env.PRODUCTION_SLOT_NAME }}
+          app-settings-json: '[{"name": "GlobalPassword","value": "${{ steps.getSecretsFromProductionKeyVault.outputs.GlobalPassword }}","slotSetting": false},{"name": "SimulatedFailureChance","value": "${{ steps.getSecretsFromProductionKeyVault.outputs.SimulatedFailureChance }}","slotSetting": false},{"name": "APPINSIGHTS_INSTRUMENTATIONKEY","value": "df46728f-9bd3-4856-b8da-7fe32be38921","slotSetting": false}]'
+   
 
