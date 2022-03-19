@@ -13,7 +13,7 @@ Install the following prerequisites:
 - [Git](https://git-scm.com/download/)
 - Up-to-date Chrome, Firefox, or Edge browser
 
-Clone the Git repository and open the root folder in Visual Studio / Visual Studio Code. Push F5 to start debugging.
+Clone the Git repository and open the root folder in Visual Studio / Visual Studio Code. Push F5 to start debugging
 
 We recommend using a free [Windows Virtual Machine](https://developer.microsoft.com/en-us/windows/downloads/virtual-machines/) for development if your development environment does not support installation of the .NET Core SDK.
 
